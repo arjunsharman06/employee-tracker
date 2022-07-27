@@ -2,6 +2,8 @@ const db = require('./db/connection');
 const inquirer = require('inquirer');
 const cTable = require('console.table');
 const { error } = require('console');
+const { async } = require('rxjs');
+const { exit } = require('process');
 
 const options = [
     'View all Departments',
@@ -9,8 +11,12 @@ const options = [
     'View all Employees',
     'Add a Department',
     'Add a Role',
-    'Add an employee',
-    'Update an employee role',
+    'Add an Employee',
+    'Update an Employee Role',
+    'Update an Employee Manager',
+    'View Employee By Manager',
+    'View Employee By Department',
+    'Total utilized budget of each department',
     'Exit'
 ]
 
@@ -34,8 +40,7 @@ function userOption() {
 }
 
 function validateOption(userSelection) {
-    let index = options.indexOf(userSelection.choice) + 1;
-    console.log(index);
+    let index = options.indexOf(userSelection.choice) + 1;  
     switch (index) {
         case 1:
             getDepartment();
@@ -55,6 +60,24 @@ function validateOption(userSelection) {
         case 6:
             addEmployee();
             break;
+        case 7:
+            updateEmployeeRole();
+            break;
+        case 8:
+            updateEmployeeManager();
+            break;
+        case 9:
+            getEmployeesByManager();
+            break;
+        case 10:
+            getEmployeesByDepartment();
+            break;
+        case 11:
+            getBudget();
+            break;
+        default: 
+                console.log("Thank you for using the application!!!");
+                exit(0);
     };
 }
 
@@ -180,18 +203,18 @@ async function addRole() {
 // Get Employess including the ids,f_name,l_name,job title, dep ,salary 
 function getEmployees() {
     const sql = `select 
-    employee.id, 
-    employee.first_name, 
-    employee.last_name, 
-    role.title, 
-    department.name as department, 
-    role.salary, 
-    CONCAT(e1.first_name, " ", e1.last_name) as manager 
-  from 
-    employee 
-    LEFT JOIN employee e1 ON (employee.manager_id = e1.id) 
-    LEFT JOIN role on role.id = employee.role_id 
-    LEFT JOIN department On role.department_id = department.id;`;
+        employee.id, 
+        employee.first_name, 
+        employee.last_name, 
+        role.title, 
+        department.name as department, 
+        role.salary, 
+        CONCAT(e1.first_name, " ", e1.last_name) as manager 
+    from 
+        employee 
+        LEFT JOIN employee e1 ON (employee.manager_id = e1.id) 
+        LEFT JOIN role on role.id = employee.role_id 
+        LEFT JOIN department On role.department_id = department.id;`;
 
     db.query(sql, (err, rows) => {
         if (err) {
@@ -205,7 +228,6 @@ function getEmployees() {
 
 //Add Employee 
 async function addEmployee() {
-    console.log("hello")
     var rolesOnlyTitle;
     var roleData;
     var managersName;
@@ -226,9 +248,6 @@ async function addEmployee() {
             }
             managersName = rows.map(manager => manager.first_name + " " + manager.last_name);
             managerData = rows.map(manager => manager);
-
-            console.log(roleData);
-            console.log(managerData);
 
             inquirer.prompt([
                 {
@@ -293,3 +312,184 @@ async function addEmployee() {
     })
 }
 
+// Update the Role of an Employee
+async function updateEmployeeRole(choice) {
+
+    var rolesOnlyTitle;
+    var roleData;
+    var managersName;
+    var managerData;
+
+    db.query(`SELECT * FROM role`, (err, rows) => {
+        if (err) {
+            console.log(err.message);
+            return;
+        }
+        rolesOnlyTitle = rows.map(role => role.title);
+        roleData = rows.map(role => role);
+
+        db.query(`SELECT * FROM employee`, (err, rows) => {
+            if (err) {
+                console.log(err.message);
+                return;
+            }
+            managersName = rows.map(manager => manager.first_name + " " + manager.last_name);
+            managerData = rows.map(manager => manager);
+
+            inquirer.prompt([
+                {
+                    type: 'list',
+                    message: `Which employee role you want to update`,
+                    name: 'emp_name',
+                    choices: managersName,
+                },
+
+                {
+                    type: 'list',
+                    message: `Which role do you want to assign the selected employee`,
+                    name: 'newrole',
+                    choices: rolesOnlyTitle,
+                }
+            ]).then(({ emp_name, newrole }) => {
+                console.log(emp_name, newrole);
+
+                var roleID = (roleData.filter((data) => data.title === newrole))[0].id;
+                var managerID = (managerData.filter((data) => data.first_name === (emp_name.split(' '))[0]))[0].id;
+
+                const sql = ` UPDATE employee
+                                SET role_id = ?
+                                WHERE id = ? ;`;
+
+                const params = [roleID, managerID];
+
+                db.query(sql, params, (err, rows) => {
+                    if (err) {
+                        console.log(err.message);
+                        return;
+                    }
+                    userOption();
+                })
+            });
+        })
+    })
+}
+
+// Update the manage of an Employee
+async function updateEmployeeManager() {
+
+    var managersName;
+    var managerData;
+
+    db.query(`SELECT * FROM employee`, (err, rows) => {
+        if (err) {
+            console.log(err.message);
+            return;
+        }
+        managersName = rows.map(manager => manager.first_name + " " + manager.last_name);
+        managerData = rows.map(manager => manager);
+
+        inquirer.prompt([
+            {
+                type: 'list',
+                message: `Which employee Manager you want to update`,
+                name: 'emp_name',
+                choices: managersName,
+            },
+
+            {
+                type: 'list',
+                message: `Which manager do you want to assign the selected employee`,
+                name: 'newmanager',
+                choices: managersName,
+            }
+        ]).then(({ emp_name, newmanager }) => {
+
+            var newManagerID = (managerData.filter((data) => data.first_name === (newmanager.split(' '))[0]))[0].id;
+
+            var employeeID = (managerData.filter((data) => data.first_name === (emp_name.split(' '))[0]))[0].id;
+
+            const sql = ` UPDATE employee
+                                SET manager_id = ?
+                                WHERE id = ? ;`;
+
+            const params = [newManagerID, employeeID];
+
+            db.query(sql, params, (err, rows) => {
+                if (err) {
+                    console.log(err.message);
+                    return;
+                }
+                userOption();
+            })
+        });
+    })
+
+}
+
+// Get Employees By Manager
+function getEmployeesByManager() {
+    const sql = `SELECT 
+    CONCAT(e1.first_name, " ", e1.last_name) as manager, 
+    CONCAT(
+      employee.first_name, " ", employee.last_name
+    ) as employee 
+  FROM 
+    employee 
+    RIGHT join employee e1 on employee.manager_id = e1.id 
+  ORDER BY 
+    manager`;
+
+    db.query(sql, (err, rows) => {
+        if (err) {
+            console.log(err.message);
+            return;
+        }
+        console.log(cTable.getTable(rows));
+        userOption();
+    });
+}
+
+// Get Employees By Department
+function getEmployeesByDepartment() {
+    const sql = `select 
+    department.name as department, 
+    CONCAT(
+      employee.first_name, " ", employee.last_name
+    ) as employee 
+  from 
+    employee 
+    LEFT JOIN role on role.id = employee.role_id 
+    LEFT JOIN department On role.department_id = department.id;`
+
+
+    db.query(sql, (err, rows) => {
+        if (err) {
+            console.log(err.message);
+            return;
+        }
+        console.log(cTable.getTable(rows));
+        userOption();
+    });
+}
+
+// Get Total Budget by Department
+function getBudget() {
+    const sql = `select 
+    department.name as department, 
+    SUM(role.salary) as Total_Budget
+  from 
+    employee 
+    LEFT JOIN role on role.id = employee.role_id 
+    LEFT JOIN department On role.department_id = department.id 
+  group by 
+    department.name`;
+
+    db.query(sql, (err, rows) => {
+        if (err) {
+            console.log(err.message);
+            return;
+        }
+        console.log(cTable.getTable(rows));
+        userOption();
+    });
+}
