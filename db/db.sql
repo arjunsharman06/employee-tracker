@@ -1,0 +1,4 @@
+DROP 
+  DATABASE IF EXISTS database_name;
+CREATE DATABASE cms;
+USE cms;
