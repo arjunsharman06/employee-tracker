@@ -15,14 +15,14 @@ const options = [
 ]
 
 db.connect((err) => {
-    if(err){
+    if (err) {
         throw console.error(err.message);
     }
     console.log("Connected to Database");
     userOption();
 });
 
-function userOption(){
+function userOption() {
     return inquirer.prompt([
         {
             type: 'list',
@@ -30,27 +30,30 @@ function userOption(){
             name: 'choice',
             choices: options,
         }
-    ]).then( userSelection => validateOption(userSelection));
+    ]).then(userSelection => validateOption(userSelection));
 }
 
-function validateOption (userSelection){
-    console.log(userSelection);
+function validateOption(userSelection) {
     let index = options.indexOf(userSelection.choice) + 1;
-    switch (index){
+    console.log(index);
+    switch (index) {
         case 1:
             getDepartment();
             break;
         case 2:
             getRoles();
             break;
-        case 3 :
+        case 3:
             getEmployees();
             break;
-        case 4 :
+        case 4:
             addDepartment();
             break;
-        case 5 : 
+        case 5:
             addRole();
+            break;
+        case 6:
+            addEmployee();
             break;
     };
 }
@@ -94,9 +97,9 @@ async function addDepartment() {
             if (err) {
                 console.log(err.message);
                 return;
-            }           
+            }
             userOption();
-        })        
+        })
     });
 }
 
@@ -128,7 +131,7 @@ function getRoles() {
 //Add Role 
 async function addRole() {
     db.query('SELECT * FROM department', (err, rows) => {
-        var department = rows.map((dep) => dep.name);      
+        var department = rows.map((dep) => dep.name);
         inquirer.prompt([
             {
                 type: 'input',
@@ -157,19 +160,136 @@ async function addRole() {
                 choices: department,
             }
 
-        ]).then(({role_title,role_salary,department}) => {                  
+        ]).then(({ role_title, role_salary, department }) => {
             var depInfo = rows.filter((data) => data.name === department);
             var id = depInfo[0].id;
 
             const query = `INSERT INTO role (title,salary,department_id) VALUES (?,?,?)`
-            const params = [role_title,role_salary,id];
-            db.query(query,params, (err, rows) => {
+            const params = [role_title, role_salary, id];
+            db.query(query, params, (err, rows) => {
+                if (err) {
+                    console.log(err.message);
+                    return;
+                }
+                userOption();
+            })
+        });
+    });
+}
+
+// Get Employess including the ids,f_name,l_name,job title, dep ,salary 
+function getEmployees() {
+    const sql = `select 
+    employee.id, 
+    employee.first_name, 
+    employee.last_name, 
+    role.title, 
+    department.name as department, 
+    role.salary, 
+    CONCAT(e1.first_name, " ", e1.last_name) as manager 
+  from 
+    employee 
+    LEFT JOIN employee e1 ON (employee.manager_id = e1.id) 
+    LEFT JOIN role on role.id = employee.role_id 
+    LEFT JOIN department On role.department_id = department.id;`;
+
+    db.query(sql, (err, rows) => {
+        if (err) {
+            console.log(err.message);
+            return;
+        }
+        console.log(cTable.getTable(rows));
+        userOption();
+    });
+}
+
+//Add Employee 
+async function addEmployee() {
+    console.log("hello")
+    var rolesOnlyTitle;
+    var roleData;
+    var managersName;
+    var managerData;
+
+    db.query(`SELECT * FROM role`, (err, rows) => {
+        if (err) {
+            console.log(err.message);
+            return;
+        }
+        rolesOnlyTitle = rows.map(role => role.title);
+        roleData = rows.map(role => role);
+
+        db.query(`SELECT * FROM employee`, (err, rows) => {
             if (err) {
                 console.log(err.message);
                 return;
             }
-            userOption();              
-            })           
-        });
-    });
+            managersName = rows.map(manager => manager.first_name + " " + manager.last_name);
+            managerData = rows.map(manager => manager);
+
+            console.log(roleData);
+            console.log(managerData);
+
+            inquirer.prompt([
+                {
+                    type: 'input',
+                    message: `What is the employee's first name`,
+                    name: 'first_name',
+                    validate: (firstName) => {
+                        if (firstName) {
+                            return true;
+                        } else {
+                            console.log("Input your First Name");
+                            return false;
+                        }
+                    }
+                },
+
+                {
+                    type: 'input',
+                    message: `What is the employee's last name`,
+                    name: 'last_name',
+                    validate: (lName) => {
+                        if (lName) {
+                            return true;
+                        } else {
+                            console.log("Input your Last Name");
+                            return false;
+                        }
+                    }
+                },
+
+                {
+                    type: 'list',
+                    message: `What is the employee's role`,
+                    name: 'emp_role',
+                    choices: rolesOnlyTitle,
+                },
+
+                {
+                    type: 'list',
+                    message: `Who is the employee's manager`,
+                    name: 'emp_manager',
+                    choices: managersName,
+                }
+            ]).then(({ first_name, last_name, emp_role, emp_manager }) => {
+                console.log(first_name, last_name, emp_role, emp_manager);
+
+                var roleID = (roleData.filter((data) => data.title === emp_role))[0].id;
+                var managerID = (managerData.filter((data) => data.first_name === (emp_manager.split(' '))[0]))[0].id;
+
+                const sql = `INSERT INTO employee ( first_name, last_name, role_id, manager_id)  VALUES (?,?,?,?);`;
+                const params = [first_name, last_name, roleID, managerID];
+
+                db.query(sql, params, (err, rows) => {
+                    if (err) {
+                        console.log(err.message);
+                        return;
+                    }
+                    userOption();
+                })
+            });
+        })
+    })
 }
+
