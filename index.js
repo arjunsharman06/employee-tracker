@@ -4,6 +4,7 @@ const cTable = require('console.table');
 const { error } = require('console');
 const { async } = require('rxjs');
 const { exit } = require('process');
+const { filter } = require('rxjs');
 
 const options = [
     'View all Departments',
@@ -17,6 +18,9 @@ const options = [
     'View Employee By Manager',
     'View Employee By Department',
     'Total utilized budget of each department',
+    'Delete Department',
+    'Delete Role',
+    'Delete User',
     'Exit'
 ]
 
@@ -40,7 +44,7 @@ function userOption() {
 }
 
 function validateOption(userSelection) {
-    let index = options.indexOf(userSelection.choice) + 1;  
+    let index = options.indexOf(userSelection.choice) + 1;
     switch (index) {
         case 1:
             getDepartment();
@@ -75,9 +79,18 @@ function validateOption(userSelection) {
         case 11:
             getBudget();
             break;
-        default: 
-                console.log("Thank you for using the application!!!");
-                exit(0);
+        case 12:
+            deleteDepartment();
+            break;
+        case 13:
+            deleteRole();
+            break;
+        case 14:
+            deleteEmployee();
+            break;            
+        default:
+            console.log("Thank you for using the application!!!");
+            exit(0);
     };
 }
 
@@ -472,6 +485,121 @@ function getEmployeesByDepartment() {
     });
 }
 
+// Delete Department
+function deleteDepartment() {
+    const sql = `SELECT * FROM department;`;
+    var department;
+    var totalData;
+
+    db.query(sql, (err, rows) => {
+        if (err) {
+            console.log(err.message);
+            return;
+        }
+        department = rows.map(depart => depart.name);
+        totalData = rows.map(depart => depart);
+
+        inquirer.prompt([
+            {
+                type: 'list',
+                message: 'Select the Department which you want to delete',
+                name: 'department',
+                choices: department,
+
+            },
+        ]).then(({ department }) => {
+
+            var depID = totalData.filter(data => data.name == department)[0].id;
+            const sql = `DELETE FROM department WHERE id = ?;`
+            const param = [depID];
+            db.query(sql, param, (err, rows) => {
+                if (err) {
+                    console.log(err.message);
+                    return;
+                }
+                userOption();
+            });
+        });
+    })
+}
+
+// Delete Role
+function deleteRole() {
+    const sql = `SELECT * FROM role;`;
+    var role;
+    var totalData;
+
+    db.query(sql, (err, rows) => {
+        if (err) {
+            console.log(err.message);
+            return;
+        }
+        role = rows.map(role => role.title);
+        totalData = rows.map(role => role);
+
+        inquirer.prompt([
+            {
+                type: 'list',
+                message: 'Select the Role which you want to delete',
+                name: 'role',
+                choices: role,
+
+            },
+        ]).then(({ role }) => {
+
+            var roleID = totalData.filter(data => data.title == role)[0].id;
+            const sql = `DELETE FROM role WHERE id = ?;`
+            const param = [roleID];
+            db.query(sql, param, (err, rows) => {
+                if (err) {
+                    console.log(err.message);
+                    return;
+                }
+                userOption();
+            });
+        });
+    })
+}
+
+// Delete Employee
+function deleteEmployee() {
+    const sql = `SELECT * FROM employee;`;
+    var employee;
+    var totalData;
+
+    db.query(sql, (err, rows) => {
+        if (err) {
+            console.log(err.message);
+            return;
+        }
+        
+        employee = rows.map(manager => manager.first_name + " " + manager.last_name);
+        totalData = rows.map(manager => manager);
+
+        inquirer.prompt([
+            {
+                type: 'list',
+                message: 'Select the Employee which you want to delete',
+                name: 'employee',
+                choices: employee,
+
+            },
+        ]).then(({ employee }) => {
+
+            var employeeID = (totalData.filter((data) => data.first_name === (employee.split(' '))[0]))[0].id;
+
+            const sql = `DELETE FROM employee WHERE id = ?;`
+            const param = [employeeID];
+            db.query(sql, param, (err, rows) => {
+                if (err) {
+                    console.log(err.message);
+                    return;
+                }
+                userOption();
+            });
+        });
+    })
+}
 // Get Total Budget by Department
 function getBudget() {
     const sql = `select 
